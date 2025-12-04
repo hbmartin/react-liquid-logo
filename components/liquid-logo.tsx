@@ -1,9 +1,13 @@
-"use client"
+'use client'
 
-import { useEffect, useRef, useState, useCallback } from "react"
-import { cn } from "@/lib/utils"
-import { parseLogoImage } from "@/lib/parse-logo-image"
-import { vertexShaderSource, liquidFragSource } from "@/lib/liquid-logo-shaders"
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { cn } from '@/lib/utils'
+import { parseLogoImage } from '@/lib/parse-logo-image'
+import {
+  buildLiquidFragSource,
+  type LiquidShaderConfig,
+  vertexShaderSource,
+} from '@/lib/liquid-logo-shaders'
 
 interface LiquidLogoProps {
   className?: string
@@ -15,10 +19,11 @@ interface LiquidLogoProps {
   liquid?: number
   speed?: number
   showProcessing?: boolean
+  shaderConfig?: LiquidShaderConfig
 }
 
 function activateProgram(gl: WebGL2RenderingContext, program: WebGLProgram) {
-  gl["useProgram"](program)
+  gl['useProgram'](program)
 }
 
 export function LiquidLogo({
@@ -31,6 +36,7 @@ export function LiquidLogo({
   liquid = 0.07,
   speed = 0.3,
   showProcessing = true,
+  shaderConfig,
 }: LiquidLogoProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const glRef = useRef<WebGL2RenderingContext | null>(null)
@@ -42,20 +48,26 @@ export function LiquidLogo({
 
   const [processing, setProcessing] = useState(false)
 
-  const createShader = useCallback((gl: WebGL2RenderingContext, sourceCode: string, type: number) => {
-    const shader = gl.createShader(type)
-    if (!shader) return null
+  const shaderConfigKey = useMemo(() => JSON.stringify(shaderConfig ?? {}), [shaderConfig])
+  const fragmentSource = useMemo(() => buildLiquidFragSource(shaderConfig), [shaderConfigKey])
 
-    gl.shaderSource(shader, sourceCode)
-    gl.compileShader(shader)
+  const createShader = useCallback(
+    (gl: WebGL2RenderingContext, sourceCode: string, type: number) => {
+      const shader = gl.createShader(type)
+      if (!shader) return null
 
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-      gl.deleteShader(shader)
-      return null
-    }
+      gl.shaderSource(shader, sourceCode)
+      gl.compileShader(shader)
 
-    return shader
-  }, [])
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        gl.deleteShader(shader)
+        return null
+      }
+
+      return shader
+    },
+    []
+  )
 
   const getUniforms = useCallback((program: WebGLProgram, gl: WebGL2RenderingContext) => {
     const uniforms: Record<string, WebGLUniformLocation> = {}
@@ -71,7 +83,7 @@ export function LiquidLogo({
 
   const initShader = useCallback(() => {
     const canvas = canvasRef.current
-    const gl = canvas?.getContext("webgl2", {
+    const gl = canvas?.getContext('webgl2', {
       antialias: true,
       alpha: true,
     })
@@ -80,17 +92,35 @@ export function LiquidLogo({
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
+    if (programRef.current) {
+      gl.deleteProgram(programRef.current)
+      programRef.current = null
+    }
+
     const vertexShader = createShader(gl, vertexShaderSource, gl.VERTEX_SHADER)
-    const fragmentShader = createShader(gl, liquidFragSource, gl.FRAGMENT_SHADER)
+    const fragmentShader = createShader(gl, fragmentSource, gl.FRAGMENT_SHADER)
     const program = gl.createProgram()
 
-    if (!program || !vertexShader || !fragmentShader) return
+    if (!program || !vertexShader || !fragmentShader) {
+      if (vertexShader) gl.deleteShader(vertexShader)
+      if (fragmentShader) gl.deleteShader(fragmentShader)
+      if (program) gl.deleteProgram(program)
+      return
+    }
 
     gl.attachShader(program, vertexShader)
     gl.attachShader(program, fragmentShader)
     gl.linkProgram(program)
 
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      gl.deleteShader(vertexShader)
+      gl.deleteShader(fragmentShader)
+      gl.deleteProgram(program)
+      return
+    }
+
+    gl.deleteShader(vertexShader)
+    gl.deleteShader(fragmentShader)
 
     programRef.current = program
     activateProgram(gl, program)
@@ -102,13 +132,13 @@ export function LiquidLogo({
     gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer)
     gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW)
 
-    const positionLocation = gl.getAttribLocation(program, "a_position")
+    const positionLocation = gl.getAttribLocation(program, 'a_position')
     gl.enableVertexAttribArray(positionLocation)
     gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer)
     gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
 
     glRef.current = gl
-  }, [createShader, getUniforms])
+  }, [createShader, fragmentSource, getUniforms])
 
   const updateUniforms = useCallback(() => {
     const gl = glRef.current
@@ -133,7 +163,9 @@ export function LiquidLogo({
 
     if (!canvas || !gl || !uniforms || Object.keys(uniforms).length === 0) return
 
-    const imgRatio = imageDataRef.current ? imageDataRef.current.width / imageDataRef.current.height : 1
+    const imgRatio = imageDataRef.current
+      ? imageDataRef.current.width / imageDataRef.current.height
+      : 1
 
     const side = 1000
     canvas.width = side * devicePixelRatio
@@ -170,11 +202,11 @@ export function LiquidLogo({
         0,
         gl.RGBA,
         gl.UNSIGNED_BYTE,
-        imageData.data,
+        imageData.data
       )
       gl.uniform1i(uniforms.u_image_texture, 0)
     } catch (e) {
-      console.error("Failed to create texture", e)
+      console.error('Failed to create texture', e)
     }
 
     return () => {
@@ -192,7 +224,7 @@ export function LiquidLogo({
         const { imageData } = await parseLogoImage(imageUrl)
         imageDataRef.current = imageData
       } catch (error) {
-        console.error("Failed to process image", error)
+        console.error('Failed to process image', error)
         setProcessing(false)
         return
       }
@@ -233,15 +265,20 @@ export function LiquidLogo({
     init()
 
     const handleResize = () => resizeCanvas()
-    window.addEventListener("resize", handleResize)
+    window.addEventListener('resize', handleResize)
 
     return () => {
-      window.removeEventListener("resize", handleResize)
+      window.removeEventListener('resize', handleResize)
       if (animationRef.current.rafId !== null) {
         cancelAnimationFrame(animationRef.current.rafId)
       }
       if (cleanupTextureRef.current) {
         cleanupTextureRef.current()
+      }
+      const gl = glRef.current
+      if (gl && programRef.current) {
+        gl.deleteProgram(programRef.current)
+        programRef.current = null
       }
     }
   }, [imageUrl, speed, initShader, updateUniforms, setupTexture, resizeCanvas])
@@ -259,7 +296,7 @@ export function LiquidLogo({
       )}
       <canvas
         ref={canvasRef}
-        className={cn("block size-full object-contain", className, {
+        className={cn('block size-full object-contain', className, {
           hidden: processing,
         })}
       />
