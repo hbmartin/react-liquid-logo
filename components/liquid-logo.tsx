@@ -25,7 +25,7 @@ export function LiquidLogo({
   className,
   imageUrl,
   patternScale = 2,
-  refraction = 0.015,
+  refraction = 0.01,
   edge = 0.4,
   patternBlur = 0.005,
   liquid = 0.07,
