@@ -1,4 +1,4 @@
-export function parseLogoImage(imageUrl: string): Promise<{ imageData: ImageData; pngBlob: Blob }> {
+export function parseLogoImage(imageUrl: string): Promise<{ imageData: ImageData }> {
   const canvas = document.createElement("canvas")
   const ctx = canvas.getContext("2d")
 
@@ -141,18 +141,9 @@ export function parseLogoImage(imageUrl: string): Promise<{ imageData: ImageData
           }
         }
       }
-
-      ctx.putImageData(outImg, 0, 0)
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          reject(new Error("Failed to create PNG blob"))
-          return
-        }
-        resolve({
-          imageData: outImg,
-          pngBlob: blob,
-        })
-      }, "image/png")
+      resolve({
+        imageData: outImg
+      })
     }
 
     img.onerror = () => reject(new Error("Failed to load image"))

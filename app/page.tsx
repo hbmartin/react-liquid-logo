@@ -11,7 +11,7 @@ export default function Home() {
           edge={0.2}
           patternBlur={0.005}
           liquid={0.07}
-          speed={0.3}
+          speed={0.1}
         />
       </div>
     </main>

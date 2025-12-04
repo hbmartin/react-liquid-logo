@@ -124,8 +124,15 @@ void main() {
     vec3 color = vec3(0.);
     float opacity = 1.;
 
-    vec3 color1 = vec3(1.0, 0.85, 0.4);
-    vec3 color2 = vec3(0.35, 0.22, 0.05);
+    // Realistic gold palette - highlights are warm white-gold, shadows are deep amber
+    vec3 goldBright = vec3(1.0, 0.92, 0.55);    // Bright specular gold
+    vec3 goldMid = vec3(0.92, 0.72, 0.22);      // Rich mid-tone gold  
+    vec3 goldDeep = vec3(0.6, 0.38, 0.08);      // Deep amber shadow
+    
+    // Vary the palette subtly based on position for more depth
+    float posVar = 0.5 + 0.5 * sin(uv.x * 3.0 + uv.y * 2.0);
+    vec3 color1 = mix(goldBright, goldMid, posVar * 0.2);
+    vec3 color2 = mix(goldDeep, goldMid, posVar * 0.15);
 
     float edge = img.r;
 
@@ -184,15 +191,16 @@ void main() {
 
     dir -= t;
 
+    // Reduced chromatic aberration - keeps gold hue more consistent
     float refr_r = refr;
-    refr_r += .03 * bulge * noise;
-    float refr_b = 1.3 * refr;
+    refr_r += .02 * bulge * noise;
+    float refr_b = 0.6 * refr;  // Reduced from 1.3 to keep blue closer
 
-    refr_r += 5. * (smoothstep(-.1, .2, uv.y) * smoothstep(.5, .1, uv.y)) * (smoothstep(.4, .6, bulge) * smoothstep(1., .4, bulge));
-    refr_r -= diagonal;
+    refr_r += 3. * (smoothstep(-.1, .2, uv.y) * smoothstep(.5, .1, uv.y)) * (smoothstep(.4, .6, bulge) * smoothstep(1., .4, bulge));
+    refr_r -= diagonal * 0.7;
 
-    refr_b += (smoothstep(0., .4, uv.y) * smoothstep(.8, .1, uv.y)) * (smoothstep(.4, .6, bulge) * smoothstep(.8, .4, bulge));
-    refr_b -= .2 * edge;
+    refr_b += 0.5 * (smoothstep(0., .4, uv.y) * smoothstep(.8, .1, uv.y)) * (smoothstep(.4, .6, bulge) * smoothstep(.8, .4, bulge));
+    refr_b -= .1 * edge;
 
     refr_r *= u_refraction;
     refr_b *= u_refraction;
@@ -201,12 +209,21 @@ void main() {
     w[1] -= .02 * smoothstep(.0, 1., edge + bulge);
     float stripe_r = mod(dir + refr_r, 1.);
     float r = get_color_channel(color1.r, color2.r, stripe_r, w, 0.02 + .03 * u_refraction * bulge, bulge);
-    float stripe_g = mod(dir, 1.);
+    float stripe_g = mod(dir + refr_r * 0.5, 1.);  // G follows R partially for gold cohesion
     float g = get_color_channel(color1.g, color2.g, stripe_g, w, 0.01 / (1. - diagonal), bulge);
     float stripe_b = mod(dir - refr_b, 1.);
     float b = get_color_channel(color1.b, color2.b, stripe_b, w, .01, bulge);
 
     color = vec3(r, g, b);
+    
+    // Compute luminance and pull color back toward gold spectrum
+    float lum = dot(color, vec3(0.299, 0.587, 0.114));
+    vec3 pureGold = mix(goldDeep, goldBright, lum);
+    color = mix(color, pureGold, 0.2);  // 20% bias toward pure gold
+    
+    // Add subtle specular highlight in bright areas
+    float specular = smoothstep(0.75, 0.95, lum) * smoothstep(0.3, 0.6, bulge);
+    color += vec3(1.0, 0.95, 0.8) * specular * 0.15;
 
     color *= opacity;
 
