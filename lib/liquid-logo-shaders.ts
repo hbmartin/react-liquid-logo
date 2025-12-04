@@ -124,8 +124,8 @@ void main() {
     vec3 color = vec3(0.);
     float opacity = 1.;
 
-    vec3 color1 = vec3(.98, 0.98, 1.);
-    vec3 color2 = vec3(.1, .1, .1 + .1 * smoothstep(.7, 1.3, uv.x + uv.y));
+    vec3 color1 = vec3(1.0, 0.85, 0.4);
+    vec3 color2 = vec3(0.35, 0.22, 0.05);
 
     float edge = img.r;
 
@@ -150,7 +150,6 @@ void main() {
     float thin_strip_1_width = cycle_width * thin_strip_1_ratio;
     float thin_strip_2_width = cycle_width * thin_strip_2_ratio;
 
-    // Lower threshold means more of the shape is visible
     float edgeThreshold = 0.95 - 0.3 * u_edge;
     opacity = 1. - smoothstep(edgeThreshold - 0.1, edgeThreshold, edge);
     opacity *= get_img_frame_alpha(img_uv, 0.01);
@@ -212,5 +211,4 @@ void main() {
     color *= opacity;
 
     fragColor = vec4(color, opacity);
-}
-`
+}`
