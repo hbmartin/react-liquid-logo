@@ -14,7 +14,7 @@ export default function Home() {
   const [speed, setSpeed] = useState(0.1)
 
   return (
-    <main className="flex min-h-screen items-center justify-center gap-12 bg-black p-8">
+    <main className="flex flex-col md:flex-row min-h-screen items-center justify-center gap-8 md:gap-12 bg-black p-4 md:p-8">
       <div className="w-full max-w-2xl aspect-video">
         <LiquidLogo
           imageUrl="/svrn-wordmark.svg"
