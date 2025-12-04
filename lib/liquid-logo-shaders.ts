@@ -116,7 +116,7 @@ void main() {
 
     float diagonal = uv.x - uv.y;
 
-    float t = .001 * u_time;
+    float t = 0.0005 * u_time;
 
     vec2 img_uv = get_img_uv();
     vec4 img = texture(u_image_texture, img_uv);
@@ -145,18 +145,18 @@ void main() {
 
     // === MULTI-FREQUENCY NOISE FOR SHIMMER & LIQUID MOTION ===
     // Slow, large-scale liquid flow
-    float slowNoise = snoise(uv * 1.5 - t * 0.8);
+    float slowNoise = snoise(uv * 1.2 - t * 0.5);
     // Medium organic movement  
-    float medNoise = snoise(uv * 3.0 - t * 1.2 + 10.0);
+    float medNoise = snoise(uv * 2.4 - t * 0.9 + 10.0);
     // Fast micro-shimmer (the "sparkle")
-    float fastNoise = snoise(uv * 8.0 - t * 2.5 + 25.0);
+    float fastNoise = snoise(uv * 6.0 - t * 1.5 + 25.0);
     // Combined liquid noise
-    float noise = slowNoise * 0.5 + medNoise * 0.35 + fastNoise * 0.15;
+    float noise = slowNoise * 0.65 + medNoise * 0.28 + fastNoise * 0.07;
     
     // Caustic-like bright ripples (simulates light refracting through liquid surface)
-    float caustic1 = snoise(uv * 4.0 + vec2(t * 1.5, t * 0.7));
-    float caustic2 = snoise(uv * 6.0 - vec2(t * 0.9, t * 1.3) + 50.0);
-    float caustics = pow(max(0.0, caustic1 * caustic2 + 0.3), 2.0);
+    float caustic1 = snoise(uv * 3.2 + vec2(t * 0.9, t * 0.4));
+    float caustic2 = snoise(uv * 5.0 - vec2(t * 0.5, t * 0.8) + 50.0);
+    float caustics = pow(max(0.0, caustic1 * caustic2 + 0.35), 1.6);
 
     float cycle_width = u_patternScale;
     float thin_strip_1_ratio = .12 / cycle_width * (1. - .4 * bulge);
@@ -166,12 +166,14 @@ void main() {
     float thin_strip_1_width = cycle_width * thin_strip_1_ratio;
     float thin_strip_2_width = cycle_width * thin_strip_2_ratio;
 
-    float edgeThreshold = 0.95 - 0.3 * u_edge;
-    opacity = 1. - smoothstep(edgeThreshold - 0.1, edgeThreshold, edge);
+    float edgeThreshold = 0.9 - 0.2 * u_edge;
+    opacity = 1. - smoothstep(edgeThreshold - 0.07, edgeThreshold + 0.02, edge);
     opacity *= get_img_frame_alpha(img_uv, 0.01);
 
     // Liquid edge distortion - makes edges feel fluid
-    float liquidEdge = edge + (1. - edge) * u_liquid * noise * 1.5;
+    float interiorMask = smoothstep(0.05, 0.4, 1. - edge);
+    float liquidEdge = edge + interiorMask * u_liquid * noise * 0.8;
+    liquidEdge = mix(liquidEdge, edge, smoothstep(0.85, 0.97, edge));
 
     float refr = 0.;
     refr += (1. - bulge);
@@ -182,11 +184,14 @@ void main() {
     dir += diagonal;
 
     // More organic liquid distortion
-    dir -= 2.5 * noise * diagonal * (smoothstep(0., 1., liquidEdge) * smoothstep(1., 0., liquidEdge));
-    dir += slowNoise * 0.15 * u_liquid;  // Additional slow drift
+    float interiorLiquid = smoothstep(0.1, 0.6, 1. - liquidEdge);
+    dir -= 1.6 * noise * diagonal * interiorLiquid;
+    dir += slowNoise * 0.08 * u_liquid;  // Additional slow drift
 
     bulge *= clamp(pow(uv.y, .1), .3, 1.);
-    dir *= (.1 + (1.1 - liquidEdge) * bulge);
+    dir *= (.15 + (1.05 - liquidEdge) * bulge);
+
+    float crestMask = smoothstep(0.1, 0.6, bulge);
 
     dir *= smoothstep(1., .7, liquidEdge);
 
@@ -201,15 +206,17 @@ void main() {
 
     // Chromatic aberration with liquid warping
     float refr_r = refr;
-    refr_r += .03 * bulge * noise;
-    refr_r += medNoise * 0.02 * u_liquid;  // Extra liquid wobble
-    float refr_b = 0.5 * refr;
+    refr_r += 0.018 * bulge * noise;
+    refr_r += medNoise * 0.01 * u_liquid;  // Extra liquid wobble
+    float refr_b = 0.35 * refr;
 
-    refr_r += 3.5 * (smoothstep(-.1, .2, uv.y) * smoothstep(.5, .1, uv.y)) * (smoothstep(.4, .6, bulge) * smoothstep(1., .4, bulge));
-    refr_r -= diagonal * 0.6;
+    float bulgeGlow = smoothstep(.4, .6, bulge) * smoothstep(1., .4, bulge);
+    refr_r += 1.8 * (smoothstep(-.1, .2, uv.y) * smoothstep(.5, .1, uv.y)) * bulgeGlow * crestMask;
+    refr_r -= diagonal * 0.4;
 
-    refr_b += 0.4 * (smoothstep(0., .4, uv.y) * smoothstep(.8, .1, uv.y)) * (smoothstep(.4, .6, bulge) * smoothstep(.8, .4, bulge));
-    refr_b -= .1 * liquidEdge;
+    float bulgeShadow = smoothstep(.4, .6, bulge) * smoothstep(.8, .4, bulge);
+    refr_b += 0.2 * (smoothstep(0., .4, uv.y) * smoothstep(.8, .1, uv.y)) * bulgeShadow * crestMask;
+    refr_b -= 0.05 * liquidEdge;
 
     refr_r *= u_refraction;
     refr_b *= u_refraction;
@@ -229,36 +236,47 @@ void main() {
     // === DEPTH & SHIMMER ENHANCEMENTS ===
     float lum = dot(color, vec3(0.299, 0.587, 0.114));
     
+    // Subtle hue shifts for cooler shadows / warmer highlights
+    float shadowWeight = smoothstep(0.25, 0.65, 1. - lum);
+    vec3 coolShadow = vec3(0.74, 0.6, 0.5);
+    color = mix(color, color * coolShadow, shadowWeight * 0.15);
+    float highlightWeight = smoothstep(0.55, 0.9, lum) * crestMask;
+    vec3 warmHighlight = vec3(1.06, 0.98, 0.78);
+    color = mix(color, color * warmHighlight, highlightWeight * 0.2);
+    
     // Micro-shimmer: fast sparkle overlay based on luminance
     float shimmer = fastNoise * 0.5 + 0.5;
-    shimmer = pow(shimmer, 3.0) * smoothstep(0.3, 0.7, lum);
-    color += goldSpecular * shimmer * 0.12;
+    shimmer = pow(shimmer, 4.0) * smoothstep(0.45, 0.8, lum) * crestMask;
+    color += goldSpecular * shimmer * 0.05;
     
     // Caustic light ripples - bright dancing highlights
-    float causticIntensity = caustics * smoothstep(0.2, 0.5, bulge) * smoothstep(0.4, 0.8, lum);
-    color += goldSpecular * causticIntensity * 0.2;
+    float causticIntensity = caustics * smoothstep(0.25, 0.55, bulge) * smoothstep(0.5, 0.85, lum) * crestMask;
+    color += goldSpecular * causticIntensity * 0.12;
     
     // Pull toward gold spectrum to prevent color drift
     vec3 pureGold = mix(goldDeep, goldBright, lum);
-    color = mix(color, pureGold, 0.15);
+    color = mix(color, pureGold, 0.2);
     
     // Fresnel-like edge brightening (liquid metal reflects more at glancing angles)
     float fresnelEdge = smoothstep(0.3, 0.7, liquidEdge) * smoothstep(0.9, 0.5, liquidEdge);
-    color += goldMid * fresnelEdge * 0.15;
+    color += goldMid * fresnelEdge * 0.12;
     
     // Depth darkening - recessed areas go darker and more saturated
-    float depthFactor = smoothstep(0.0, 0.4, lum);
-    vec3 deepColor = mix(goldDeep * 0.7, color, depthFactor);
-    color = mix(deepColor, color, 0.7 + bulge * 0.3);
+    float depthFactor = smoothstep(0.05, 0.45, lum);
+    vec3 deepColor = mix(goldDeep * 0.78, color, depthFactor);
+    color = mix(deepColor, color, 0.75 + bulge * 0.25);
     
-    // Primary specular highlights - moving hot spots
-    float spec1 = smoothstep(0.82, 0.98, lum) * smoothstep(0.35, 0.65, bulge);
-    float spec2 = smoothstep(0.75, 0.92, lum) * (0.5 + 0.5 * sin(diagonal * 4.0 + t * 3.0));
-    float specular = max(spec1, spec2 * 0.6);
-    color += goldSpecular * specular * 0.25;
+    // Primary specular highlights - moving hot spots with directional cue
+    float spec1 = smoothstep(0.82, 0.97, lum) * smoothstep(0.35, 0.65, bulge);
+    vec2 lightDir = normalize(vec2(0.25, 0.97));
+    vec2 pseudoNormal = normalize(grad_uv + vec2(0.0001));
+    float spec2 = smoothstep(0.74, 0.9, lum) * clamp(dot(lightDir, pseudoNormal), 0., 1.);
+    float specular = (spec1 * 0.7 + spec2 * 0.3) * crestMask;
+    color += goldSpecular * specular * 0.18;
     
-    // Final contrast boost for depth
-    color = pow(color, vec3(0.95));  // Slight gamma for richer darks
+    // Filmic tonemapping for gentle highlight compression
+    vec3 filmic = (color * (vec3(2.51) * color + vec3(0.03))) / (color * (vec3(2.43) * color + vec3(0.59)) + vec3(0.14));
+    color = clamp(filmic, 0., 1.);
 
     color *= opacity;
 
