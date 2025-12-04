@@ -8,30 +8,48 @@ export function parseLogoImage(imageUrl: string): Promise<{ imageData: ImageData
       return
     }
 
+    const isSvg = imageUrl.toLowerCase().endsWith(".svg") || imageUrl.startsWith("data:image/svg")
     const img = new Image()
     img.crossOrigin = "anonymous"
     img.onload = () => {
-      const MAX_SIZE = 1500
-      const MIN_SIZE = 800
-      let width = img.naturalWidth
-      let height = img.naturalHeight
+      const TARGET_SIZE = 1200
+      let width: number
+      let height: number
+      const aspectRatio = img.naturalWidth / img.naturalHeight
 
-      if (width > MAX_SIZE || height > MAX_SIZE || width < MIN_SIZE || height < MIN_SIZE) {
-        if (width > height) {
-          if (width > MAX_SIZE) {
-            height = Math.round((height * MAX_SIZE) / width)
-            width = MAX_SIZE
-          } else if (width < MIN_SIZE) {
-            height = Math.round((height * MIN_SIZE) / width)
-            width = MIN_SIZE
-          }
+      // For SVGs, ignore naturalWidth/Height (which come from viewBox) and render at target size
+      // For raster images, scale based on actual dimensions
+      if (isSvg) {
+        if (aspectRatio >= 1) {
+          width = TARGET_SIZE
+          height = Math.round(TARGET_SIZE / aspectRatio)
         } else {
-          if (height > MAX_SIZE) {
-            width = Math.round((width * MAX_SIZE) / height)
-            height = MAX_SIZE
-          } else if (height < MIN_SIZE) {
-            width = Math.round((width * MIN_SIZE) / height)
-            height = MIN_SIZE
+          height = TARGET_SIZE
+          width = Math.round(TARGET_SIZE * aspectRatio)
+        }
+      } else {
+        width = img.naturalWidth
+        height = img.naturalHeight
+        const MAX_SIZE = 1500
+        const MIN_SIZE = 800
+
+        if (width > MAX_SIZE || height > MAX_SIZE || width < MIN_SIZE || height < MIN_SIZE) {
+          if (width > height) {
+            if (width > MAX_SIZE) {
+              height = Math.round((height * MAX_SIZE) / width)
+              width = MAX_SIZE
+            } else if (width < MIN_SIZE) {
+              height = Math.round((height * MIN_SIZE) / width)
+              width = MIN_SIZE
+            }
+          } else {
+            if (height > MAX_SIZE) {
+              width = Math.round((width * MAX_SIZE) / height)
+              height = MAX_SIZE
+            } else if (height < MIN_SIZE) {
+              width = Math.round((width * MIN_SIZE) / height)
+              height = MIN_SIZE
+            }
           }
         }
       }
@@ -43,6 +61,10 @@ export function parseLogoImage(imageUrl: string): Promise<{ imageData: ImageData
       shapeCanvas.width = width
       shapeCanvas.height = height
       const shapeCtx = shapeCanvas.getContext("2d")!
+
+      // Enable high-quality image smoothing for better anti-aliasing
+      shapeCtx.imageSmoothingEnabled = true
+      shapeCtx.imageSmoothingQuality = "high"
 
       shapeCtx.fillStyle = "white"
       shapeCtx.fillRect(0, 0, width, height)
