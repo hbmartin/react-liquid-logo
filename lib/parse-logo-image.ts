@@ -1,16 +1,16 @@
 export function parseLogoImage(imageUrl: string): Promise<{ imageData: ImageData }> {
-  const canvas = document.createElement("canvas")
-  const ctx = canvas.getContext("2d")
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
 
   return new Promise((resolve, reject) => {
     if (!imageUrl || !ctx) {
-      reject(new Error("Invalid image URL or context"))
+      reject(new Error('Invalid image URL or context'))
       return
     }
 
-    const isSvg = imageUrl.toLowerCase().endsWith(".svg") || imageUrl.startsWith("data:image/svg")
+    const isSvg = imageUrl.toLowerCase().endsWith('.svg') || imageUrl.startsWith('data:image/svg')
     const img = new Image()
-    img.crossOrigin = "anonymous"
+    img.crossOrigin = 'anonymous'
     img.onload = () => {
       const TARGET_SIZE = 1200
       let width: number
@@ -57,16 +57,16 @@ export function parseLogoImage(imageUrl: string): Promise<{ imageData: ImageData
       canvas.width = width
       canvas.height = height
 
-      const shapeCanvas = document.createElement("canvas")
+      const shapeCanvas = document.createElement('canvas')
       shapeCanvas.width = width
       shapeCanvas.height = height
-      const shapeCtx = shapeCanvas.getContext("2d")!
+      const shapeCtx = shapeCanvas.getContext('2d')!
 
       // Enable high-quality image smoothing for better anti-aliasing
       shapeCtx.imageSmoothingEnabled = true
-      shapeCtx.imageSmoothingQuality = "high"
+      shapeCtx.imageSmoothingQuality = 'high'
 
-      shapeCtx.fillStyle = "white"
+      shapeCtx.fillStyle = 'white'
       shapeCtx.fillRect(0, 0, width, height)
       shapeCtx.drawImage(img, 0, 0, width, height)
 
@@ -128,7 +128,8 @@ export function parseLogoImage(imageUrl: string): Promise<{ imageData: ImageData
               newU[idx] = 0
               continue
             }
-            const sumN = getU(x + 1, y, u) + getU(x - 1, y, u) + getU(x, y + 1, u) + getU(x, y - 1, u)
+            const sumN =
+              getU(x + 1, y, u) + getU(x - 1, y, u) + getU(x, y + 1, u) + getU(x, y - 1, u)
             newU[idx] = (C + sumN) / 4
           }
         }
@@ -164,11 +165,11 @@ export function parseLogoImage(imageUrl: string): Promise<{ imageData: ImageData
         }
       }
       resolve({
-        imageData: outImg
+        imageData: outImg,
       })
     }
 
-    img.onerror = () => reject(new Error("Failed to load image"))
+    img.onerror = () => reject(new Error('Failed to load image'))
     img.src = imageUrl
   })
 }

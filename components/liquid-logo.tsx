@@ -23,7 +23,7 @@ interface LiquidLogoProps {
 }
 
 function activateProgram(gl: WebGL2RenderingContext, program: WebGLProgram) {
-  gl['useProgram'](program)
+  gl.useProgram(program)
 }
 
 export function LiquidLogo({
@@ -47,9 +47,7 @@ export function LiquidLogo({
   const cleanupTextureRef = useRef<(() => void) | null>(null)
 
   const [processing, setProcessing] = useState(false)
-
-  const shaderConfigKey = useMemo(() => JSON.stringify(shaderConfig ?? {}), [shaderConfig])
-  const fragmentSource = useMemo(() => buildLiquidFragSource(shaderConfig), [shaderConfigKey])
+  const fragmentSource = useMemo(() => buildLiquidFragSource(shaderConfig), [shaderConfig])
 
   const createShader = useCallback(
     (gl: WebGL2RenderingContext, sourceCode: string, type: number) => {
