@@ -10,24 +10,86 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion'
 
+type MaterialSettings = {
+  patternScale: number
+  patternBlur: number
+  refraction: number
+  liquid: number
+  edge: number
+}
+
+type MotionSettings = {
+  speed: number
+  timeScale: number
+}
+
+type NoiseWeights = {
+  slow: number
+  medium: number
+  fast: number
+}
+
+type LightingSettings = {
+  shimmerPower: number
+  shimmerIntensity: number
+  causticIntensity: number
+}
+
+type EdgeParameters = {
+  base: number
+  range: number
+  fadeLow: number
+  fadeHigh: number
+}
+
+const DEFAULT_MATERIAL: MaterialSettings = {
+  patternScale: 2,
+  patternBlur: 0.005,
+  refraction: 0.015,
+  liquid: 0.07,
+  edge: 0.2,
+}
+
+const DEFAULT_MOTION: MotionSettings = {
+  speed: 0.1,
+  timeScale: 0.0005,
+}
+
+const DEFAULT_NOISE_WEIGHTS: NoiseWeights = {
+  slow: 0.65,
+  medium: 0.28,
+  fast: 0.07,
+}
+
+const DEFAULT_LIGHTING: LightingSettings = {
+  shimmerPower: 4,
+  shimmerIntensity: 0.05,
+  causticIntensity: 0.12,
+}
+
+const DEFAULT_EDGE_PARAMETERS: EdgeParameters = {
+  base: 0.9,
+  range: 0.2,
+  fadeLow: 0.07,
+  fadeHigh: 0.02,
+}
+
 export default function Home() {
-  const [patternScale, setPatternScale] = useState(2)
-  const [refraction, setRefraction] = useState(0.015)
-  const [edge, setEdge] = useState(0.2)
-  const [patternBlur, setPatternBlur] = useState(0.005)
-  const [liquid, setLiquid] = useState(0.07)
-  const [speed, setSpeed] = useState(0.1)
-  const [timeScale, setTimeScale] = useState(0.0005)
-  const [noiseSlowWeight, setNoiseSlowWeight] = useState(0.65)
-  const [noiseMediumWeight, setNoiseMediumWeight] = useState(0.28)
-  const [noiseFastWeight, setNoiseFastWeight] = useState(0.07)
-  const [shimmerPower, setShimmerPower] = useState(4)
-  const [shimmerIntensity, setShimmerIntensity] = useState(0.05)
-  const [causticIntensity, setCausticIntensity] = useState(0.12)
-  const [edgeBase, setEdgeBase] = useState(0.9)
-  const [edgeRange, setEdgeRange] = useState(0.2)
-  const [edgeFadeLow, setEdgeFadeLow] = useState(0.07)
-  const [edgeFadeHigh, setEdgeFadeHigh] = useState(0.02)
+  const [material, setMaterial] = useState<MaterialSettings>(() => ({
+    ...DEFAULT_MATERIAL,
+  }))
+  const [motion, setMotion] = useState<MotionSettings>(() => ({
+    ...DEFAULT_MOTION,
+  }))
+  const [noiseWeights, setNoiseWeights] = useState<NoiseWeights>(() => ({
+    ...DEFAULT_NOISE_WEIGHTS,
+  }))
+  const [lighting, setLighting] = useState<LightingSettings>(() => ({
+    ...DEFAULT_LIGHTING,
+  }))
+  const [edgeParams, setEdgeParams] = useState<EdgeParameters>(() => ({
+    ...DEFAULT_EDGE_PARAMETERS,
+  }))
   const [copied, setCopied] = useState(false)
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -41,91 +103,61 @@ export default function Home() {
 
   const shaderConfig = useMemo(
     () => ({
-      timeScale,
+      timeScale: motion.timeScale,
       noise: {
-        slow: { weight: noiseSlowWeight },
-        medium: { weight: noiseMediumWeight },
-        fast: { weight: noiseFastWeight },
+        slow: { weight: noiseWeights.slow },
+        medium: { weight: noiseWeights.medium },
+        fast: { weight: noiseWeights.fast },
       },
       shimmer: {
-        power: shimmerPower,
-        intensity: shimmerIntensity,
+        power: lighting.shimmerPower,
+        intensity: lighting.shimmerIntensity,
       },
       caustics: {
-        intensity: causticIntensity,
+        intensity: lighting.causticIntensity,
       },
       edge: {
-        base: edgeBase,
-        range: edgeRange,
-        fadeLow: edgeFadeLow,
-        fadeHigh: edgeFadeHigh,
+        base: edgeParams.base,
+        range: edgeParams.range,
+        fadeLow: edgeParams.fadeLow,
+        fadeHigh: edgeParams.fadeHigh,
       },
     }),
-    [
-      timeScale,
-      noiseSlowWeight,
-      noiseMediumWeight,
-      noiseFastWeight,
-      shimmerPower,
-      shimmerIntensity,
-      causticIntensity,
-      edgeBase,
-      edgeRange,
-      edgeFadeLow,
-      edgeFadeHigh,
-    ]
+    [motion.timeScale, noiseWeights, lighting, edgeParams]
   )
 
   const usageSnippet = useMemo(
     () => `<LiquidLogo
   imageUrl="/svrn-wordmark.svg"
-  patternScale={${patternScale}}
-  refraction={${refraction}}
-  edge={${edge}}
-  patternBlur={${patternBlur}}
-  liquid={${liquid}}
-  speed={${speed}}
+  patternScale={${material.patternScale}}
+  refraction={${material.refraction}}
+  edge={${material.edge}}
+  patternBlur={${material.patternBlur}}
+  liquid={${material.liquid}}
+  speed={${motion.speed}}
   shaderConfig={{
-    timeScale: ${timeScale},
+    timeScale: ${motion.timeScale},
     noise: {
-      slow: { weight: ${noiseSlowWeight} },
-      medium: { weight: ${noiseMediumWeight} },
-      fast: { weight: ${noiseFastWeight} },
+      slow: { weight: ${noiseWeights.slow} },
+      medium: { weight: ${noiseWeights.medium} },
+      fast: { weight: ${noiseWeights.fast} },
     },
     shimmer: {
-      power: ${shimmerPower},
-      intensity: ${shimmerIntensity},
+      power: ${lighting.shimmerPower},
+      intensity: ${lighting.shimmerIntensity},
     },
     caustics: {
-      intensity: ${causticIntensity},
+      intensity: ${lighting.causticIntensity},
     },
     edge: {
-      base: ${edgeBase},
-      range: ${edgeRange},
-      fadeLow: ${edgeFadeLow},
-      fadeHigh: ${edgeFadeHigh},
+      base: ${edgeParams.base},
+      range: ${edgeParams.range},
+      fadeLow: ${edgeParams.fadeLow},
+      fadeHigh: ${edgeParams.fadeHigh},
     },
   }}
 />`,
-    [
-      patternScale,
-      refraction,
-      edge,
-      patternBlur,
-      liquid,
-      speed,
-      timeScale,
-      noiseSlowWeight,
-      noiseMediumWeight,
-      noiseFastWeight,
-      shimmerPower,
-      shimmerIntensity,
-      causticIntensity,
-      edgeBase,
-      edgeRange,
-      edgeFadeLow,
-      edgeFadeHigh,
-    ]
+    [material, motion, noiseWeights, lighting, edgeParams]
   )
 
   const handleCopyUsage = useCallback(async () => {
@@ -139,7 +171,8 @@ export default function Home() {
         clearTimeout(copyTimeoutRef.current)
       }
       copyTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
-    } catch {
+    } catch (err) {
+      console.error('Failed to copy: ', err)
       setCopied(false)
     }
   }, [usageSnippet])
@@ -149,12 +182,12 @@ export default function Home() {
       <div className="w-full max-w-2xl aspect-video">
         <LiquidLogo
           imageUrl="/svrn-wordmark.svg"
-          patternScale={patternScale}
-          refraction={refraction}
-          edge={edge}
-          patternBlur={patternBlur}
-          liquid={liquid}
-          speed={speed}
+          patternScale={material.patternScale}
+          refraction={material.refraction}
+          edge={material.edge}
+          patternBlur={material.patternBlur}
+          liquid={material.liquid}
+          speed={motion.speed}
           shaderConfig={shaderConfig}
         />
       </div>
@@ -169,48 +202,48 @@ export default function Home() {
             <div className="space-y-6">
               <ControlSlider
                 label="Pattern Scale"
-                value={patternScale}
-                displayValue={patternScale.toFixed(1)}
+                value={material.patternScale}
+                displayValue={material.patternScale.toFixed(1)}
                 min={0.1}
                 max={10}
                 step={0.1}
-                onChange={setPatternScale}
+                onChange={(value) => setMaterial((prev) => ({ ...prev, patternScale: value }))}
               />
               <ControlSlider
                 label="Pattern Blur"
-                value={patternBlur}
-                displayValue={patternBlur.toFixed(3)}
+                value={material.patternBlur}
+                displayValue={material.patternBlur.toFixed(3)}
                 min={0}
                 max={0.05}
                 step={0.001}
-                onChange={setPatternBlur}
+                onChange={(value) => setMaterial((prev) => ({ ...prev, patternBlur: value }))}
               />
               <ControlSlider
                 label="Refraction"
-                value={refraction}
-                displayValue={refraction.toFixed(3)}
+                value={material.refraction}
+                displayValue={material.refraction.toFixed(3)}
                 min={0}
                 max={0.1}
                 step={0.001}
-                onChange={setRefraction}
+                onChange={(value) => setMaterial((prev) => ({ ...prev, refraction: value }))}
               />
               <ControlSlider
                 label="Edge Detection"
-                value={edge}
-                displayValue={edge.toFixed(2)}
+                value={material.edge}
+                displayValue={material.edge.toFixed(2)}
                 min={0}
                 max={1}
                 step={0.01}
-                onChange={setEdge}
+                onChange={(value) => setMaterial((prev) => ({ ...prev, edge: value }))}
               />
               <ControlSlider
                 label="Liquid Distortion"
-                value={liquid}
-                displayValue={liquid.toFixed(2)}
+                value={material.liquid}
+                displayValue={material.liquid.toFixed(2)}
                 min={0}
                 max={0.5}
                 step={0.01}
-                onChange={setLiquid}
+                onChange={(value) => setMaterial((prev) => ({ ...prev, liquid: value }))}
               />
             </div>
           </AccordionContent>
@@ -222,48 +255,48 @@ export default function Home() {
             <div className="space-y-6">
               <ControlSlider
                 label="Playback Speed"
-                value={speed}
-                displayValue={speed.toFixed(2)}
+                value={motion.speed}
+                displayValue={motion.speed.toFixed(2)}
                 min={0}
                 max={2}
                 step={0.01}
-                onChange={setSpeed}
+                onChange={(value) => setMotion((prev) => ({ ...prev, speed: value }))}
               />
               <ControlSlider
                 label="Time Scale"
-                value={timeScale}
-                displayValue={timeScale.toFixed(4)}
+                value={motion.timeScale}
+                displayValue={motion.timeScale.toFixed(4)}
                 min={0.0001}
                 max={0.001}
                 step={0.00005}
-                onChange={setTimeScale}
+                onChange={(value) => setMotion((prev) => ({ ...prev, timeScale: value }))}
               />
               <ControlSlider
                 label="Slow Noise Weight"
-                value={noiseSlowWeight}
-                displayValue={noiseSlowWeight.toFixed(2)}
+                value={noiseWeights.slow}
+                displayValue={noiseWeights.slow.toFixed(2)}
                 min={0}
                 max={1}
                 step={0.01}
-                onChange={setNoiseSlowWeight}
+                onChange={(value) => setNoiseWeights((prev) => ({ ...prev, slow: value }))}
               />
               <ControlSlider
                 label="Medium Noise Weight"
-                value={noiseMediumWeight}
-                displayValue={noiseMediumWeight.toFixed(2)}
+                value={noiseWeights.medium}
+                displayValue={noiseWeights.medium.toFixed(2)}
                 min={0}
                 max={1}
                 step={0.01}
-                onChange={setNoiseMediumWeight}
+                onChange={(value) => setNoiseWeights((prev) => ({ ...prev, medium: value }))}
               />
               <ControlSlider
                 label="Fast Noise Weight"
-                value={noiseFastWeight}
-                displayValue={noiseFastWeight.toFixed(2)}
+                value={noiseWeights.fast}
+                displayValue={noiseWeights.fast.toFixed(2)}
                 min={0}
                 max={0.5}
                 step={0.01}
-                onChange={setNoiseFastWeight}
+                onChange={(value) => setNoiseWeights((prev) => ({ ...prev, fast: value }))}
               />
             </div>
           </AccordionContent>
@@ -275,66 +308,66 @@ export default function Home() {
             <div className="space-y-6">
               <ControlSlider
                 label="Shimmer Power"
-                value={shimmerPower}
-                displayValue={shimmerPower.toFixed(1)}
+                value={lighting.shimmerPower}
+                displayValue={lighting.shimmerPower.toFixed(1)}
                 min={1}
                 max={6}
                 step={0.1}
-                onChange={setShimmerPower}
+                onChange={(value) => setLighting((prev) => ({ ...prev, shimmerPower: value }))}
               />
               <ControlSlider
                 label="Shimmer Intensity"
-                value={shimmerIntensity}
-                displayValue={shimmerIntensity.toFixed(3)}
+                value={lighting.shimmerIntensity}
+                displayValue={lighting.shimmerIntensity.toFixed(3)}
                 min={0}
                 max={0.15}
                 step={0.001}
-                onChange={setShimmerIntensity}
+                onChange={(value) => setLighting((prev) => ({ ...prev, shimmerIntensity: value }))}
               />
               <ControlSlider
                 label="Caustic Intensity"
-                value={causticIntensity}
-                displayValue={causticIntensity.toFixed(3)}
+                value={lighting.causticIntensity}
+                displayValue={lighting.causticIntensity.toFixed(3)}
                 min={0}
                 max={0.3}
                 step={0.005}
-                onChange={setCausticIntensity}
+                onChange={(value) => setLighting((prev) => ({ ...prev, causticIntensity: value }))}
               />
               <ControlSlider
                 label="Edge Base"
-                value={edgeBase}
-                displayValue={edgeBase.toFixed(2)}
+                value={edgeParams.base}
+                displayValue={edgeParams.base.toFixed(2)}
                 min={0.7}
                 max={1}
                 step={0.01}
-                onChange={setEdgeBase}
+                onChange={(value) => setEdgeParams((prev) => ({ ...prev, base: value }))}
               />
               <ControlSlider
                 label="Edge Range"
-                value={edgeRange}
-                displayValue={edgeRange.toFixed(2)}
+                value={edgeParams.range}
+                displayValue={edgeParams.range.toFixed(2)}
                 min={0}
                 max={0.4}
                 step={0.01}
-                onChange={setEdgeRange}
+                onChange={(value) => setEdgeParams((prev) => ({ ...prev, range: value }))}
               />
               <ControlSlider
                 label="Edge Fade (Inner)"
-                value={edgeFadeLow}
-                displayValue={edgeFadeLow.toFixed(3)}
+                value={edgeParams.fadeLow}
+                displayValue={edgeParams.fadeLow.toFixed(3)}
                 min={0}
                 max={0.2}
                 step={0.001}
-                onChange={setEdgeFadeLow}
+                onChange={(value) => setEdgeParams((prev) => ({ ...prev, fadeLow: value }))}
               />
               <ControlSlider
                 label="Edge Fade (Outer)"
-                value={edgeFadeHigh}
-                displayValue={edgeFadeHigh.toFixed(3)}
+                value={edgeParams.fadeHigh}
+                displayValue={edgeParams.fadeHigh.toFixed(3)}
                 min={0}
                 max={0.2}
                 step={0.001}
-                onChange={setEdgeFadeHigh}
+                onChange={(value) => setEdgeParams((prev) => ({ ...prev, fadeHigh: value }))}
               />
             </div>
           </AccordionContent>

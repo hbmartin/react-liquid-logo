@@ -108,55 +108,39 @@ const defaultLiquidShaderConfig: CompleteShaderConfig = {
   },
 }
 
-const mergeNoiseLayer = (
-  defaults: CompleteNoiseLayerConfig,
-  override?: NoiseLayerConfig
-): CompleteNoiseLayerConfig => ({
-  frequency: override?.frequency ?? defaults.frequency,
-  timeFactor: override?.timeFactor ?? defaults.timeFactor,
-  weight: override?.weight ?? defaults.weight,
-})
-
 const mergeShaderConfig = (overrides: LiquidShaderConfig = {}): CompleteShaderConfig => ({
   timeScale: overrides.timeScale ?? defaultLiquidShaderConfig.timeScale,
   noise: {
-    slow: mergeNoiseLayer(defaultLiquidShaderConfig.noise.slow, overrides.noise?.slow),
-    medium: mergeNoiseLayer(defaultLiquidShaderConfig.noise.medium, overrides.noise?.medium),
-    fast: mergeNoiseLayer(defaultLiquidShaderConfig.noise.fast, overrides.noise?.fast),
+    slow: { ...defaultLiquidShaderConfig.noise.slow, ...overrides.noise?.slow },
+    medium: { ...defaultLiquidShaderConfig.noise.medium, ...overrides.noise?.medium },
+    fast: { ...defaultLiquidShaderConfig.noise.fast, ...overrides.noise?.fast },
   },
-  caustics: {
-    freq1: overrides.caustics?.freq1 ?? defaultLiquidShaderConfig.caustics.freq1,
-    freq2: overrides.caustics?.freq2 ?? defaultLiquidShaderConfig.caustics.freq2,
-    time1: overrides.caustics?.time1 ?? defaultLiquidShaderConfig.caustics.time1,
-    time2: overrides.caustics?.time2 ?? defaultLiquidShaderConfig.caustics.time2,
-    bias: overrides.caustics?.bias ?? defaultLiquidShaderConfig.caustics.bias,
-    exponent: overrides.caustics?.exponent ?? defaultLiquidShaderConfig.caustics.exponent,
-    intensity: overrides.caustics?.intensity ?? defaultLiquidShaderConfig.caustics.intensity,
-  },
-  edge: {
-    base: overrides.edge?.base ?? defaultLiquidShaderConfig.edge.base,
-    range: overrides.edge?.range ?? defaultLiquidShaderConfig.edge.range,
-    fadeLow: overrides.edge?.fadeLow ?? defaultLiquidShaderConfig.edge.fadeLow,
-    fadeHigh: overrides.edge?.fadeHigh ?? defaultLiquidShaderConfig.edge.fadeHigh,
-  },
-  shimmer: {
-    power: overrides.shimmer?.power ?? defaultLiquidShaderConfig.shimmer.power,
-    intensity: overrides.shimmer?.intensity ?? defaultLiquidShaderConfig.shimmer.intensity,
-  },
-  filmic: {
-    a: overrides.filmic?.a ?? defaultLiquidShaderConfig.filmic.a,
-    b: overrides.filmic?.b ?? defaultLiquidShaderConfig.filmic.b,
-    c: overrides.filmic?.c ?? defaultLiquidShaderConfig.filmic.c,
-    d: overrides.filmic?.d ?? defaultLiquidShaderConfig.filmic.d,
-    e: overrides.filmic?.e ?? defaultLiquidShaderConfig.filmic.e,
-  },
+  caustics: { ...defaultLiquidShaderConfig.caustics, ...overrides.caustics },
+  edge: { ...defaultLiquidShaderConfig.edge, ...overrides.edge },
+  shimmer: { ...defaultLiquidShaderConfig.shimmer, ...overrides.shimmer },
+  filmic: { ...defaultLiquidShaderConfig.filmic, ...overrides.filmic },
 })
 
 const formatNumber = (value: number) => {
-  const str = Number(value).toString()
-  if (str.includes('.') || str.includes('e') || str.includes('E')) {
+  const num = Number(value)
+  const ensureDecimal = (input: string) => (input.includes('.') ? input : `${input}.0`)
+  let str = num.toString()
+
+  if (str.includes('e') || str.includes('E')) {
+    let fixed = num.toFixed(10)
+    if (fixed.includes('.')) {
+      fixed = fixed.replace(/0+$/, '')
+      if (fixed.endsWith('.')) {
+        fixed += '0'
+      }
+    }
+    return ensureDecimal(fixed)
+  }
+
+  if (str.includes('.')) {
     return str
   }
+
   return `${str}.0`
 }
 
