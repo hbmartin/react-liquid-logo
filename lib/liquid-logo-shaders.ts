@@ -9,7 +9,166 @@ void main() {
     gl_Position = vec4(a_position, 0.0, 1.0);
 }`
 
-export const liquidFragSource = /* glsl */ `#version 300 es
+export interface NoiseLayerConfig {
+  frequency?: number
+  timeFactor?: number
+  weight?: number
+}
+
+export interface CausticConfig {
+  freq1?: number
+  freq2?: number
+  time1?: [number, number]
+  time2?: [number, number]
+  bias?: number
+  exponent?: number
+  intensity?: number
+}
+
+export interface EdgeThresholdConfig {
+  base?: number
+  range?: number
+  fadeLow?: number
+  fadeHigh?: number
+}
+
+export interface ShimmerConfig {
+  power?: number
+  intensity?: number
+}
+
+export interface FilmicCoefficients {
+  a: number
+  b: number
+  c: number
+  d: number
+  e: number
+}
+
+export interface LiquidShaderConfig {
+  timeScale?: number
+  noise?: {
+    slow?: NoiseLayerConfig
+    medium?: NoiseLayerConfig
+    fast?: NoiseLayerConfig
+  }
+  caustics?: CausticConfig
+  edge?: EdgeThresholdConfig
+  shimmer?: ShimmerConfig
+  filmic?: Partial<FilmicCoefficients>
+}
+
+type CompleteNoiseLayerConfig = Required<NoiseLayerConfig>
+
+type CompleteShaderConfig = {
+  timeScale: number
+  noise: {
+    slow: CompleteNoiseLayerConfig
+    medium: CompleteNoiseLayerConfig
+    fast: CompleteNoiseLayerConfig
+  }
+  caustics: Required<CausticConfig>
+  edge: Required<EdgeThresholdConfig>
+  shimmer: Required<ShimmerConfig>
+  filmic: FilmicCoefficients
+}
+
+const defaultLiquidShaderConfig: CompleteShaderConfig = {
+  timeScale: 0.0005,
+  noise: {
+    slow: { frequency: 1.2, timeFactor: 0.5, weight: 0.65 },
+    medium: { frequency: 2.4, timeFactor: 0.9, weight: 0.28 },
+    fast: { frequency: 6.0, timeFactor: 1.5, weight: 0.07 },
+  },
+  caustics: {
+    freq1: 3.2,
+    freq2: 5.0,
+    time1: [0.9, 0.4],
+    time2: [0.5, 0.8],
+    bias: 0.35,
+    exponent: 1.6,
+    intensity: 0.12,
+  },
+  edge: {
+    base: 0.9,
+    range: 0.2,
+    fadeLow: 0.07,
+    fadeHigh: 0.02,
+  },
+  shimmer: {
+    power: 4.0,
+    intensity: 0.05,
+  },
+  filmic: {
+    a: 2.51,
+    b: 0.03,
+    c: 2.43,
+    d: 0.59,
+    e: 0.14,
+  },
+}
+
+const mergeNoiseLayer = (
+  defaults: CompleteNoiseLayerConfig,
+  override?: NoiseLayerConfig
+): CompleteNoiseLayerConfig => ({
+  frequency: override?.frequency ?? defaults.frequency,
+  timeFactor: override?.timeFactor ?? defaults.timeFactor,
+  weight: override?.weight ?? defaults.weight,
+})
+
+const mergeShaderConfig = (overrides: LiquidShaderConfig = {}): CompleteShaderConfig => ({
+  timeScale: overrides.timeScale ?? defaultLiquidShaderConfig.timeScale,
+  noise: {
+    slow: mergeNoiseLayer(defaultLiquidShaderConfig.noise.slow, overrides.noise?.slow),
+    medium: mergeNoiseLayer(defaultLiquidShaderConfig.noise.medium, overrides.noise?.medium),
+    fast: mergeNoiseLayer(defaultLiquidShaderConfig.noise.fast, overrides.noise?.fast),
+  },
+  caustics: {
+    freq1: overrides.caustics?.freq1 ?? defaultLiquidShaderConfig.caustics.freq1,
+    freq2: overrides.caustics?.freq2 ?? defaultLiquidShaderConfig.caustics.freq2,
+    time1: overrides.caustics?.time1 ?? defaultLiquidShaderConfig.caustics.time1,
+    time2: overrides.caustics?.time2 ?? defaultLiquidShaderConfig.caustics.time2,
+    bias: overrides.caustics?.bias ?? defaultLiquidShaderConfig.caustics.bias,
+    exponent: overrides.caustics?.exponent ?? defaultLiquidShaderConfig.caustics.exponent,
+    intensity: overrides.caustics?.intensity ?? defaultLiquidShaderConfig.caustics.intensity,
+  },
+  edge: {
+    base: overrides.edge?.base ?? defaultLiquidShaderConfig.edge.base,
+    range: overrides.edge?.range ?? defaultLiquidShaderConfig.edge.range,
+    fadeLow: overrides.edge?.fadeLow ?? defaultLiquidShaderConfig.edge.fadeLow,
+    fadeHigh: overrides.edge?.fadeHigh ?? defaultLiquidShaderConfig.edge.fadeHigh,
+  },
+  shimmer: {
+    power: overrides.shimmer?.power ?? defaultLiquidShaderConfig.shimmer.power,
+    intensity: overrides.shimmer?.intensity ?? defaultLiquidShaderConfig.shimmer.intensity,
+  },
+  filmic: {
+    a: overrides.filmic?.a ?? defaultLiquidShaderConfig.filmic.a,
+    b: overrides.filmic?.b ?? defaultLiquidShaderConfig.filmic.b,
+    c: overrides.filmic?.c ?? defaultLiquidShaderConfig.filmic.c,
+    d: overrides.filmic?.d ?? defaultLiquidShaderConfig.filmic.d,
+    e: overrides.filmic?.e ?? defaultLiquidShaderConfig.filmic.e,
+  },
+})
+
+const formatNumber = (value: number) => {
+  const str = Number(value).toString()
+  if (str.includes('.') || str.includes('e') || str.includes('E')) {
+    return str
+  }
+  return `${str}.0`
+}
+
+const applyShaderPlaceholders = (template: string, replacements: Record<string, string>) => {
+  let result = template
+  for (const [token, value] of Object.entries(replacements)) {
+    result = result.replaceAll(token, value)
+  }
+  return result
+}
+
+const liquidFragSourceTemplate = /* glsl */ `#version 300 es
 precision mediump float;
 
 in vec2 vUv;
@@ -28,6 +187,12 @@ uniform float u_liquid;
 
 #define TWO_PI 6.28318530718
 #define PI 3.14159265358979323846
+
+const vec3 FILMIC_A = vec3(__FILMIC_A__);
+const vec3 FILMIC_B = vec3(__FILMIC_B__);
+const vec3 FILMIC_C = vec3(__FILMIC_C__);
+const vec3 FILMIC_D = vec3(__FILMIC_D__);
+const vec3 FILMIC_E = vec3(__FILMIC_E__);
 
 
 vec3 mod289(vec3 x) { return x - floor(x * (1. / 289.)) * 289.; }
@@ -116,7 +281,7 @@ void main() {
 
     float diagonal = uv.x - uv.y;
 
-    float t = 0.0005 * u_time;
+    float t = __TIME_SCALE__ * u_time;
 
     vec2 img_uv = get_img_uv();
     vec4 img = texture(u_image_texture, img_uv);
@@ -132,12 +297,12 @@ void main() {
     
     float edge = img.r;
 
-    vec2 grad_uv = uv;
-    grad_uv -= .5;
+    vec2 transformedUv = uv;
+    transformedUv -= .5;
 
-    float dist = length(grad_uv + vec2(0., .2 * diagonal));
+    float dist = length(transformedUv + vec2(0., .2 * diagonal));
 
-    grad_uv = rotate(grad_uv, (.25 - .2 * diagonal) * PI);
+    transformedUv = rotate(transformedUv, (.25 - .2 * diagonal) * PI);
 
     float bulge = pow(1.8 * dist, 1.2);
     bulge = 1. - bulge;
@@ -145,18 +310,18 @@ void main() {
 
     // === MULTI-FREQUENCY NOISE FOR SHIMMER & LIQUID MOTION ===
     // Slow, large-scale liquid flow
-    float slowNoise = snoise(uv * 1.2 - t * 0.5);
+    float slowNoise = snoise(uv * __NOISE_FREQ_SLOW__ - t * __NOISE_TIME_SLOW__);
     // Medium organic movement  
-    float medNoise = snoise(uv * 2.4 - t * 0.9 + 10.0);
+    float medNoise = snoise(uv * __NOISE_FREQ_MED__ - t * __NOISE_TIME_MED__ + 10.0);
     // Fast micro-shimmer (the "sparkle")
-    float fastNoise = snoise(uv * 6.0 - t * 1.5 + 25.0);
+    float fastNoise = snoise(uv * __NOISE_FREQ_FAST__ - t * __NOISE_TIME_FAST__ + 25.0);
     // Combined liquid noise
-    float noise = slowNoise * 0.65 + medNoise * 0.28 + fastNoise * 0.07;
+    float noise = slowNoise * __NOISE_WEIGHT_SLOW__ + medNoise * __NOISE_WEIGHT_MED__ + fastNoise * __NOISE_WEIGHT_FAST__;
     
     // Caustic-like bright ripples (simulates light refracting through liquid surface)
-    float caustic1 = snoise(uv * 3.2 + vec2(t * 0.9, t * 0.4));
-    float caustic2 = snoise(uv * 5.0 - vec2(t * 0.5, t * 0.8) + 50.0);
-    float caustics = pow(max(0.0, caustic1 * caustic2 + 0.35), 1.6);
+    float caustic1 = snoise(uv * __CAUSTIC_FREQ_1__ + vec2(t * __CAUSTIC_TIME_1_X__, t * __CAUSTIC_TIME_1_Y__));
+    float caustic2 = snoise(uv * __CAUSTIC_FREQ_2__ - vec2(t * __CAUSTIC_TIME_2_X__, t * __CAUSTIC_TIME_2_Y__) + 50.0);
+    float caustics = pow(max(0.0, caustic1 * caustic2 + __CAUSTIC_BIAS__), __CAUSTIC_EXPONENT__);
 
     float cycle_width = u_patternScale;
     float thin_strip_1_ratio = .12 / cycle_width * (1. - .4 * bulge);
@@ -166,8 +331,8 @@ void main() {
     float thin_strip_1_width = cycle_width * thin_strip_1_ratio;
     float thin_strip_2_width = cycle_width * thin_strip_2_ratio;
 
-    float edgeThreshold = 0.9 - 0.2 * u_edge;
-    opacity = 1. - smoothstep(edgeThreshold - 0.07, edgeThreshold + 0.02, edge);
+    float edgeThreshold = __EDGE_BASE__ - __EDGE_RANGE__ * u_edge;
+    opacity = 1. - smoothstep(edgeThreshold - __EDGE_FADE_LOW__, edgeThreshold + __EDGE_FADE_HIGH__, edge);
     opacity *= get_img_frame_alpha(img_uv, 0.01);
 
     // Liquid edge distortion - makes edges feel fluid
@@ -179,7 +344,7 @@ void main() {
     refr += (1. - bulge);
     refr = clamp(refr, 0., 1.);
 
-    float dir = grad_uv.x;
+    float dir = transformedUv.x;
 
     dir += diagonal;
 
@@ -246,12 +411,12 @@ void main() {
     
     // Micro-shimmer: fast sparkle overlay based on luminance
     float shimmer = fastNoise * 0.5 + 0.5;
-    shimmer = pow(shimmer, 4.0) * smoothstep(0.45, 0.8, lum) * crestMask;
-    color += goldSpecular * shimmer * 0.05;
+    shimmer = pow(shimmer, __SHIMMER_POWER__) * smoothstep(0.45, 0.8, lum) * crestMask;
+    color += goldSpecular * shimmer * __SHIMMER_INTENSITY__;
     
     // Caustic light ripples - bright dancing highlights
     float causticIntensity = caustics * smoothstep(0.25, 0.55, bulge) * smoothstep(0.5, 0.85, lum) * crestMask;
-    color += goldSpecular * causticIntensity * 0.12;
+    color += goldSpecular * causticIntensity * __CAUSTIC_INTENSITY__;
     
     // Pull toward gold spectrum to prevent color drift
     vec3 pureGold = mix(goldDeep, goldBright, lum);
@@ -269,16 +434,55 @@ void main() {
     // Primary specular highlights - moving hot spots with directional cue
     float spec1 = smoothstep(0.82, 0.97, lum) * smoothstep(0.35, 0.65, bulge);
     vec2 lightDir = normalize(vec2(0.25, 0.97));
-    vec2 pseudoNormal = normalize(grad_uv + vec2(0.0001));
+    vec2 pseudoNormal = normalize(transformedUv + vec2(0.0001));
     float spec2 = smoothstep(0.74, 0.9, lum) * clamp(dot(lightDir, pseudoNormal), 0., 1.);
     float specular = (spec1 * 0.7 + spec2 * 0.3) * crestMask;
     color += goldSpecular * specular * 0.18;
     
     // Filmic tonemapping for gentle highlight compression
-    vec3 filmic = (color * (vec3(2.51) * color + vec3(0.03))) / (color * (vec3(2.43) * color + vec3(0.59)) + vec3(0.14));
+    vec3 filmic = (color * (FILMIC_A * color + FILMIC_B)) / (color * (FILMIC_C * color + FILMIC_D) + FILMIC_E);
     color = clamp(filmic, 0., 1.);
 
     color *= opacity;
 
     fragColor = vec4(color, opacity);
 }`
+
+export function buildLiquidFragSource(overrides?: LiquidShaderConfig) {
+  const merged = mergeShaderConfig(overrides)
+  const replacements: Record<string, string> = {
+    __TIME_SCALE__: formatNumber(merged.timeScale),
+    __NOISE_FREQ_SLOW__: formatNumber(merged.noise.slow.frequency),
+    __NOISE_TIME_SLOW__: formatNumber(merged.noise.slow.timeFactor),
+    __NOISE_WEIGHT_SLOW__: formatNumber(merged.noise.slow.weight),
+    __NOISE_FREQ_MED__: formatNumber(merged.noise.medium.frequency),
+    __NOISE_TIME_MED__: formatNumber(merged.noise.medium.timeFactor),
+    __NOISE_WEIGHT_MED__: formatNumber(merged.noise.medium.weight),
+    __NOISE_FREQ_FAST__: formatNumber(merged.noise.fast.frequency),
+    __NOISE_TIME_FAST__: formatNumber(merged.noise.fast.timeFactor),
+    __NOISE_WEIGHT_FAST__: formatNumber(merged.noise.fast.weight),
+    __CAUSTIC_FREQ_1__: formatNumber(merged.caustics.freq1),
+    __CAUSTIC_TIME_1_X__: formatNumber(merged.caustics.time1[0]),
+    __CAUSTIC_TIME_1_Y__: formatNumber(merged.caustics.time1[1]),
+    __CAUSTIC_FREQ_2__: formatNumber(merged.caustics.freq2),
+    __CAUSTIC_TIME_2_X__: formatNumber(merged.caustics.time2[0]),
+    __CAUSTIC_TIME_2_Y__: formatNumber(merged.caustics.time2[1]),
+    __CAUSTIC_BIAS__: formatNumber(merged.caustics.bias),
+    __CAUSTIC_EXPONENT__: formatNumber(merged.caustics.exponent),
+    __CAUSTIC_INTENSITY__: formatNumber(merged.caustics.intensity),
+    __EDGE_BASE__: formatNumber(merged.edge.base),
+    __EDGE_RANGE__: formatNumber(merged.edge.range),
+    __EDGE_FADE_LOW__: formatNumber(merged.edge.fadeLow),
+    __EDGE_FADE_HIGH__: formatNumber(merged.edge.fadeHigh),
+    __SHIMMER_POWER__: formatNumber(merged.shimmer.power),
+    __SHIMMER_INTENSITY__: formatNumber(merged.shimmer.intensity),
+    __FILMIC_A__: formatNumber(merged.filmic.a),
+    __FILMIC_B__: formatNumber(merged.filmic.b),
+    __FILMIC_C__: formatNumber(merged.filmic.c),
+    __FILMIC_D__: formatNumber(merged.filmic.d),
+    __FILMIC_E__: formatNumber(merged.filmic.e),
+  }
+  return applyShaderPlaceholders(liquidFragSourceTemplate, replacements)
+}
+
+export const liquidFragSource = buildLiquidFragSource()

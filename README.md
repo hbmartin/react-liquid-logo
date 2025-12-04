@@ -12,7 +12,6 @@ A React component that creates beautiful animated liquid effects on logos using 
 - ⚡ **Performance optimized** with efficient shader programs
 - 🎯 **TypeScript support** with full type definitions
 
-
 ### Requirements
 
 - **React 18+**
@@ -43,17 +42,17 @@ function App() {
 
 ## Props
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `imageUrl` | `string` | **Required** | Path to the logo image (SVG, PNG, JPG) |
-| `className` | `string` | `undefined` | Additional CSS classes |
-| `patternScale` | `number` | `2` | Controls the scale of the liquid pattern |
-| `refraction` | `number` | `0.015` | Light refraction intensity (0-0.1) |
-| `edge` | `number` | `0.4` | Edge definition strength (0-1) |
-| `patternBlur` | `number` | `0.005` | Blur amount for the liquid pattern |
-| `liquid` | `number` | `0.07` | Liquid viscosity/density |
-| `speed` | `number` | `0.3` | Animation speed multiplier |
-| `showProcessing` | `boolean` | `true` | Show loading indicator while processing |
+| Prop             | Type      | Default      | Description                              |
+| ---------------- | --------- | ------------ | ---------------------------------------- |
+| `imageUrl`       | `string`  | **Required** | Path to the logo image (SVG, PNG, JPG)   |
+| `className`      | `string`  | `undefined`  | Additional CSS classes                   |
+| `patternScale`   | `number`  | `2`          | Controls the scale of the liquid pattern |
+| `refraction`     | `number`  | `0.01`       | Light refraction intensity (0-0.1)       |
+| `edge`           | `number`  | `0.4`        | Edge definition strength (0-1)           |
+| `patternBlur`    | `number`  | `0.005`      | Blur amount for the liquid pattern       |
+| `liquid`         | `number`  | `0.07`       | Liquid viscosity/density                 |
+| `speed`          | `number`  | `0.3`        | Animation speed multiplier               |
+| `showProcessing` | `boolean` | `true`       | Show loading indicator while processing  |
 
 ## Advanced Usage
 
@@ -65,7 +64,7 @@ function App() {
   className="rounded-lg shadow-lg"
   style={{
     filter: 'brightness(1.1)',
-    transform: 'scale(0.9)'
+    transform: 'scale(0.9)',
   }}
 />
 ```
@@ -81,22 +80,19 @@ const [settings, setSettings] = useState({
   edge: 0.2,
   patternBlur: 0.005,
   liquid: 0.07,
-  speed: 0.1
+  speed: 0.1,
 })
 
 return (
   <div className="flex gap-8">
     <div className="w-full max-w-2xl aspect-video">
-      <LiquidLogo
-        imageUrl="/logo.svg"
-        {...settings}
-      />
+      <LiquidLogo imageUrl="/logo.svg" {...settings} />
     </div>
 
     <div className="space-y-4">
       <Slider
         value={[settings.patternScale]}
-        onValueChange={([v]) => setSettings(s => ({ ...s, patternScale: v }))}
+        onValueChange={([v]) => setSettings((s) => ({ ...s, patternScale: v }))}
         min={0.1}
         max={10}
         step={0.1}
