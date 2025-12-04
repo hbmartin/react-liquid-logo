@@ -11,8 +11,8 @@ export function parseLogoImage(imageUrl: string): Promise<{ imageData: ImageData
     const img = new Image()
     img.crossOrigin = "anonymous"
     img.onload = () => {
-      const MAX_SIZE = 1000
-      const MIN_SIZE = 500
+      const MAX_SIZE = 1500
+      const MIN_SIZE = 800
       let width = img.naturalWidth
       let height = img.naturalHeight
 
@@ -43,6 +43,9 @@ export function parseLogoImage(imageUrl: string): Promise<{ imageData: ImageData
       shapeCanvas.width = width
       shapeCanvas.height = height
       const shapeCtx = shapeCanvas.getContext("2d")!
+
+      shapeCtx.fillStyle = "white"
+      shapeCtx.fillRect(0, 0, width, height)
       shapeCtx.drawImage(img, 0, 0, width, height)
 
       const shapeImageData = shapeCtx.getImageData(0, 0, width, height)
@@ -55,7 +58,8 @@ export function parseLogoImage(imageUrl: string): Promise<{ imageData: ImageData
           const g = data[idx4 + 1]
           const b = data[idx4 + 2]
           const a = data[idx4 + 3]
-          shapeMask[y * width + x] = !((r === 255 && g === 255 && b === 255 && a === 255) || a === 0)
+          const brightness = (r + g + b) / 3
+          shapeMask[y * width + x] = brightness < 200 && a > 50
         }
       }
 
@@ -86,7 +90,7 @@ export function parseLogoImage(imageUrl: string): Promise<{ imageData: ImageData
       const u = new Float32Array(width * height).fill(0)
       const newU = new Float32Array(width * height).fill(0)
       const C = 0.01
-      const ITERATIONS = 300
+      const ITERATIONS = 500
 
       function getU(x: number, y: number, arr: Float32Array) {
         if (x < 0 || x >= width || y < 0 || y >= height) return 0
@@ -113,7 +117,8 @@ export function parseLogoImage(imageUrl: string): Promise<{ imageData: ImageData
       for (let i = 0; i < width * height; i++) {
         if (u[i] > maxVal) maxVal = u[i]
       }
-      const alpha = 2.0
+
+      const alpha = 0.8
       const outImg = ctx.createImageData(width, height)
 
       for (let y = 0; y < height; y++) {
@@ -126,9 +131,9 @@ export function parseLogoImage(imageUrl: string): Promise<{ imageData: ImageData
             outImg.data[px + 2] = 255
             outImg.data[px + 3] = 255
           } else {
-            const raw = u[idx] / maxVal
+            const raw = maxVal > 0 ? u[idx] / maxVal : 0
             const remapped = Math.pow(raw, alpha)
-            const gray = 255 * (1 - remapped)
+            const gray = Math.min(200, 255 * (1 - remapped))
             outImg.data[px] = gray
             outImg.data[px + 1] = gray
             outImg.data[px + 2] = gray

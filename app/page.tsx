@@ -8,7 +8,7 @@ export default function Home() {
           imageUrl="/svrn-wordmark.svg"
           patternScale={2}
           refraction={0.015}
-          edge={0.4}
+          edge={0.2}
           patternBlur={0.005}
           liquid={0.07}
           speed={0.3}

@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback } from "react"
-import gsap from "gsap"
 import { cn } from "@/lib/utils"
 import { parseLogoImage } from "@/lib/parse-logo-image"
 import { vertexShaderSource, liquidFragSource } from "@/lib/liquid-logo-shaders"
@@ -18,6 +17,10 @@ interface LiquidLogoProps {
   showProcessing?: boolean
 }
 
+function activateProgram(gl: WebGL2RenderingContext, program: WebGLProgram) {
+  gl["useProgram"](program)
+}
+
 export function LiquidLogo({
   className,
   imageUrl,
@@ -31,14 +34,14 @@ export function LiquidLogo({
 }: LiquidLogoProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const glRef = useRef<WebGL2RenderingContext | null>(null)
+  const programRef = useRef<WebGLProgram | null>(null)
   const uniformsRef = useRef<Record<string, WebGLUniformLocation>>({})
   const imageDataRef = useRef<ImageData | null>(null)
-  const animationRef = useRef<{ time: number }>({ time: 0 })
+  const animationRef = useRef<{ time: number; rafId: number | null }>({ time: 0, rafId: null })
   const cleanupTextureRef = useRef<(() => void) | null>(null)
 
   const [processing, setProcessing] = useState(false)
 
-  // Create shader helper
   const createShader = useCallback((gl: WebGL2RenderingContext, sourceCode: string, type: number) => {
     const shader = gl.createShader(type)
     if (!shader) return null
@@ -54,7 +57,6 @@ export function LiquidLogo({
     return shader
   }, [])
 
-  // Get uniforms from program
   const getUniforms = useCallback((program: WebGLProgram, gl: WebGL2RenderingContext) => {
     const uniforms: Record<string, WebGLUniformLocation> = {}
     const uniformCount = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS)
@@ -67,7 +69,6 @@ export function LiquidLogo({
     return uniforms
   }, [])
 
-  // Initialize WebGL shader
   const initShader = useCallback(() => {
     const canvas = canvasRef.current
     const gl = canvas?.getContext("webgl2", {
@@ -91,9 +92,11 @@ export function LiquidLogo({
 
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return
 
+    programRef.current = program
+    activateProgram(gl, program)
+
     uniformsRef.current = getUniforms(program, gl)
 
-    // Vertex position
     const vertices = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1])
     const vertexBuffer = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer)
@@ -107,11 +110,13 @@ export function LiquidLogo({
     glRef.current = gl
   }, [createShader, getUniforms])
 
-  // Update uniforms
   const updateUniforms = useCallback(() => {
     const gl = glRef.current
     const uniforms = uniformsRef.current
-    if (!gl || !uniforms) return
+    const program = programRef.current
+    if (!gl || !uniforms || !program || Object.keys(uniforms).length === 0) return
+
+    activateProgram(gl, program)
 
     gl.uniform1f(uniforms.u_edge, edge)
     gl.uniform1f(uniforms.u_patternBlur, patternBlur)
@@ -121,37 +126,29 @@ export function LiquidLogo({
     gl.uniform1f(uniforms.u_liquid, liquid)
   }, [edge, patternBlur, patternScale, refraction, liquid])
 
-  // Resize canvas
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current
     const gl = glRef.current
     const uniforms = uniformsRef.current
 
-    if (!canvas || !gl || !uniforms) return
+    if (!canvas || !gl || !uniforms || Object.keys(uniforms).length === 0) return
 
     const imgRatio = imageDataRef.current ? imageDataRef.current.width / imageDataRef.current.height : 1
 
     const side = 1000
     canvas.width = side * devicePixelRatio
     canvas.height = side * devicePixelRatio
-    gl.viewport(0, 0, canvas.height, canvas.height)
+    gl.viewport(0, 0, canvas.width, canvas.height)
     gl.uniform1f(uniforms.u_ratio, 1)
     gl.uniform1f(uniforms.u_img_ratio, imgRatio)
   }, [])
 
-  // Setup texture
   const setupTexture = useCallback(() => {
     const gl = glRef.current
     const uniforms = uniformsRef.current
     const imageData = imageDataRef.current
 
-    if (!gl || !uniforms || !imageData) return
-
-    // Delete existing texture
-    const existingTexture = gl.getParameter(gl.TEXTURE_BINDING_2D)
-    if (existingTexture) {
-      gl.deleteTexture(existingTexture)
-    }
+    if (!gl || !uniforms || !imageData || Object.keys(uniforms).length === 0) return
 
     const imageTexture = gl.createTexture()
     gl.activeTexture(gl.TEXTURE0)
@@ -187,10 +184,7 @@ export function LiquidLogo({
     }
   }, [])
 
-  // Initialize and animate
   useEffect(() => {
-    let gsapTicker: gsap.Callback
-
     const init = async () => {
       setProcessing(true)
 
@@ -205,17 +199,22 @@ export function LiquidLogo({
 
       initShader()
       updateUniforms()
+      resizeCanvas()
       cleanupTextureRef.current = setupTexture() || null
 
       setProcessing(false)
-      resizeCanvas()
 
-      // Use GSAP ticker for animation
       let lastTime = performance.now()
-      gsapTicker = () => {
+      const animate = () => {
         const gl = glRef.current
         const uniforms = uniformsRef.current
-        if (!gl || !uniforms) return
+        const program = programRef.current
+        if (!gl || !uniforms || !program || Object.keys(uniforms).length === 0) {
+          animationRef.current.rafId = requestAnimationFrame(animate)
+          return
+        }
+
+        activateProgram(gl, program)
 
         const currentTime = performance.now()
         const deltaTime = currentTime - lastTime
@@ -224,9 +223,11 @@ export function LiquidLogo({
         animationRef.current.time += deltaTime * speed
         gl.uniform1f(uniforms.u_time, animationRef.current.time)
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+
+        animationRef.current.rafId = requestAnimationFrame(animate)
       }
 
-      gsap.ticker.add(gsapTicker)
+      animationRef.current.rafId = requestAnimationFrame(animate)
     }
 
     init()
@@ -236,8 +237,8 @@ export function LiquidLogo({
 
     return () => {
       window.removeEventListener("resize", handleResize)
-      if (gsapTicker) {
-        gsap.ticker.remove(gsapTicker)
+      if (animationRef.current.rafId !== null) {
+        cancelAnimationFrame(animationRef.current.rafId)
       }
       if (cleanupTextureRef.current) {
         cleanupTextureRef.current()
@@ -245,7 +246,6 @@ export function LiquidLogo({
     }
   }, [imageUrl, speed, initShader, updateUniforms, setupTexture, resizeCanvas])
 
-  // Update uniforms when props change
   useEffect(() => {
     updateUniforms()
   }, [updateUniforms])

@@ -150,7 +150,9 @@ void main() {
     float thin_strip_1_width = cycle_width * thin_strip_1_ratio;
     float thin_strip_2_width = cycle_width * thin_strip_2_ratio;
 
-    opacity = 1. - smoothstep(.9 - .5 * u_edge, 1. - .5 * u_edge, edge);
+    // Lower threshold means more of the shape is visible
+    float edgeThreshold = 0.95 - 0.3 * u_edge;
+    opacity = 1. - smoothstep(edgeThreshold - 0.1, edgeThreshold, edge);
     opacity *= get_img_frame_alpha(img_uv, 0.01);
 
 
